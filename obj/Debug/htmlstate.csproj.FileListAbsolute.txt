@@ -1,0 +1,5 @@
+D:\New Schedulers\Scheduler_13-09-2017\CMSParserApp\htmlstate\obj\Debug\htmlstate.csprojResolveAssemblyReference.cache
+D:\New Schedulers\Scheduler_13-09-2017\CMSParserApp\htmlstate\bin\Debug\htmlstate.exe
+D:\New Schedulers\Scheduler_13-09-2017\CMSParserApp\htmlstate\bin\Debug\htmlstate.pdb
+D:\New Schedulers\Scheduler_13-09-2017\CMSParserApp\htmlstate\obj\Debug\htmlstate.exe
+D:\New Schedulers\Scheduler_13-09-2017\CMSParserApp\htmlstate\obj\Debug\htmlstate.pdb
