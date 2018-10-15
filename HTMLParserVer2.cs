@@ -12,7 +12,11 @@ namespace htmlstate
         public event TokenHandler OnTagBegin;
         public event TokenHandler OnTagEnd;
 
-        public enum States { TEXT, NODESTART, NODEEND, ATTRIBUTENAME, ATTRIBUTEVALUESTART, ATTRIBUTEVALUEEND, ATTRIBUTEVALUE, COMMENT, DOCTYPE };
+        public enum States
+        {
+            TEXT, NODESTART, NODEEND, ATTRIBUTENAME, ATTRIBUTEVALUESTART, ATTRIBUTEVALUEEND, ATTRIBUTEVALUE, COMMENT, DOCTYPESTART, DOCTYPEATTRIBUTE, DOCTYPEATTRIBUTESTART,
+            COMMENTSTART, SCRIPTCONTENT, SCRIPTCONTENTQUOTE
+        };
 
         List<string> nodetag = new List<string>();
         int nodecharpos = 0;
@@ -21,10 +25,9 @@ namespace htmlstate
         TreeNode<CustomTag> currentNode;
         private string CurrentTAG
         {
-            get { return string.Join("", nodetag); }
+            get { return string.Join("", nodetag).Trim(); }
         }
-
-
+        
         public HTMLParserVer2()
         {
             state = States.TEXT;
@@ -52,7 +55,8 @@ namespace htmlstate
                 case States.ATTRIBUTENAME:
                     {
                         state = ATTRIBUTENAME(c, state);
-                    }break;
+                    }
+                    break;
                 case States.ATTRIBUTEVALUESTART:
                     {
                         state = ATTRIBUTEVALUESTART(c, state);
@@ -63,11 +67,42 @@ namespace htmlstate
                         state = ATTRIBUTEVALUE(c, state);
                     }
                     break;
-                case States.DOCTYPE:
+                case States.DOCTYPESTART:
                     {
-                        state = DOCTYPE(c, state);
+                        state = DOCTYPESTART(c, state);
                     }
                     break;
+                case States.DOCTYPEATTRIBUTE:
+                    {
+                        state = DOCTYPEATTRIBUTE(c, state);
+                    }
+                    break;
+                case States.DOCTYPEATTRIBUTESTART:
+                    {
+                        state = DOCTYPEATTRIBUTESTART(c, state);
+                    }
+                    break;
+                case States.COMMENTSTART:
+                    {
+                        state = COMMENTSTART(c, state);
+                    }
+                    break;
+                case States.COMMENT:
+                    {
+                        state = COMMENT(c, state);
+                    }
+                    break;
+                case States.SCRIPTCONTENT:
+                    {
+                        state = SCRIPTCONTENT(c, state);
+                    }
+                    break;
+                case States.SCRIPTCONTENTQUOTE:
+                    {
+                        state = SCRIPTCONTENT(c, state);
+                    }
+                    break;
+
                 default:
                     {
 
@@ -76,10 +111,164 @@ namespace htmlstate
             }
         }
 
-        private States DOCTYPE(char c, States state)
+        private States SCRIPTCONTENT(char c, States state)
         {
-            States returnState = States.ATTRIBUTEVALUE;
-            //if(c)
+            States returnState = States.SCRIPTCONTENT;
+
+            if (state == States.SCRIPTCONTENT)
+            {
+                if (c == '"')
+                {
+                    returnState = States.SCRIPTCONTENTQUOTE;
+                    nodetag.Add(Convert.ToString(c));
+                }
+                else if (String.Join("", nodetag).ToLower().EndsWith("</script") && c == '>')
+                {
+                    returnState = States.TEXT;
+                    int lastIndexOf = String.Join("", nodetag).ToLower().IndexOf("</script");
+                    string scripts = String.Join("", nodetag).Substring(0, nodetag.Count() - (nodetag.Count() - lastIndexOf));
+                    Console.WriteLine(currentNode.Value.TagName + ": " + scripts);
+                    Console.WriteLine("Tag: " + currentNode.Value.TagName + " closed");
+                    currentNode = OnTagEnd(null);
+                    nodetag.Clear();
+                }
+                else
+                {
+                    nodetag.Add(Convert.ToString(c));
+                }
+            }
+            else
+            {
+                nodetag.Add(Convert.ToString(c));
+                if (c == '"')
+                {
+                    returnState = States.SCRIPTCONTENT;
+                }
+            }
+            return returnState;
+        }
+
+        private States COMMENT(char c, States state)
+        {
+            States returnState = States.COMMENT;
+            nodetag.Add(Convert.ToString(c));
+            //if (c == '>')
+            {
+                if (String.Join("", nodetag).EndsWith("-->"))//check for -->
+                {
+                    returnState = States.TEXT;
+                    String node = String.Join("", nodetag);
+                    Console.WriteLine("COMMENT: " + node.Replace("-->", ""));
+                    currentNode = OnTagBegin(new CustomTag("COMMENT"));
+                    currentNode = OnTagEnd(null);
+                    nodetag.Clear();
+                }
+            }
+
+            return returnState;
+        }
+
+        private States COMMENTSTART(char c, States state)
+        {
+            States returnState = States.COMMENTSTART;
+
+            if (c == '-') //<!--
+            {
+                returnState = States.COMMENT;
+            }
+            else throw new Exception("Invalid Comment tag.");
+
+            return returnState;
+        }
+
+        private States DOCTYPEATTRIBUTESTART(char c, States state)
+        {
+            States returnState = States.DOCTYPEATTRIBUTESTART;
+            if (c == '"')
+            {
+                nodetag.Add(Convert.ToString(c));
+                returnState = States.DOCTYPEATTRIBUTE;
+                Console.WriteLine("DOCTYPEATTRIBUTE3: " + String.Join("", nodetag));
+                nodetag.Clear();
+            }
+            else if (c == '>')
+            {
+                throw new Exception(currentNode.Value.TagName + " ended abruptly.");
+            }
+            else
+            {
+                returnState = States.DOCTYPEATTRIBUTESTART;
+                nodetag.Add(Convert.ToString(c));
+            }
+            return returnState;
+        }
+
+        private States DOCTYPEATTRIBUTE(char c, States state)
+        {
+            States returnState = States.DOCTYPEATTRIBUTE;
+            if (c == '>')
+            {
+                returnState = States.TEXT;
+                if (nodetag.Count() > 0)
+                {
+                    Console.WriteLine("DOCTYPEATTRIBUTE1: " + String.Join("", nodetag));
+                    nodetag.Clear();
+                }
+                currentNode = OnTagEnd(null);
+            }
+            else if (c == '"')
+            {
+                nodetag.Add(Convert.ToString(c));
+                returnState = States.DOCTYPEATTRIBUTESTART;
+            }
+            else if (c == ' ')
+            {
+                returnState = States.DOCTYPEATTRIBUTE;
+                if (nodetag.Count() > 0)
+                {
+                    Console.WriteLine("DOCTYPEATTRIBUTE2: " + String.Join("", nodetag));
+                }
+                nodetag.Clear();
+            }
+            else
+            {
+                returnState = States.DOCTYPEATTRIBUTE;
+                nodetag.Add(Convert.ToString(c));
+            }
+            return returnState;
+        }
+
+        private States DOCTYPESTART(char c, States state)
+        {
+            States returnState = States.DOCTYPESTART;
+            if ((new char[15] { 'd', 'o', 'c', 't', 'y', 'p', 'e', 'D', 'O', 'C', 'T', 'Y', 'P', 'E', ' ' }).Contains(c))
+            {
+                nodetag.Add(Convert.ToString(c));
+                string dtype = CurrentTAG.ToLower().Trim();
+                if (dtype.StartsWith(String.Join("", (new char[7] { 'd', 'o', 'c', 't', 'y', 'p', 'e' }).Take(nodetag.Count()))))
+                {
+                    if (String.Equals(dtype, "doctype") && c == ' ')
+                    {
+                        returnState = States.DOCTYPEATTRIBUTE;
+                        nodecharpos = 0;
+                        currentNode = OnTagBegin(new CustomTag(CurrentTAG));
+                        Console.WriteLine("Tag: " + currentNode.Value.TagName + " opened");
+                        nodetag.Clear();
+                    }
+                }
+                else
+                {
+                    throw new Exception(CurrentTAG + " is an invalid tag. Expected doctype.");
+                }
+            }
+            else if (c == '-' && nodetag.Count() == 0) //<!-
+            {
+                returnState = States.COMMENTSTART;
+            }
+            else
+            {
+                throw new Exception(CurrentTAG + " is an invalid tag. Expected doctype.");
+            }
             return returnState;
         }
 
@@ -118,15 +307,22 @@ namespace htmlstate
             {
                 returnState = States.TEXT;
                 nodecharpos = 0;
-                if (!String.IsNullOrWhiteSpace(CurrentTAG)) { 
+                if (!String.IsNullOrWhiteSpace(CurrentTAG))
+                {
                     Console.WriteLine("ATTRIBUTENAME: " + String.Join("", nodetag));
                 }
                 //currentNode = OnTagEnd(null);
                 //currentNode = OnTagBegin(new CustomTag(CurrentTAG));
                 Console.WriteLine("Current Tag:" + currentNode.Value.TagName);
                 nodetag.Clear();
+
+                //DOCTYPE END
+                if (currentNode.Value.TagName.Trim().ToLower() == "doctype")
+                {
+                    currentNode = OnTagEnd(null);
+                }
             }
-            else if(c=='=')
+            else if (c == '=')
             {
                 returnState = States.ATTRIBUTEVALUESTART;
                 nodecharpos = 0;
@@ -142,7 +338,7 @@ namespace htmlstate
                 returnState = States.NODEEND;
                 nodetag = currentNode.Value.TagName.ToCharArray().Select(x => Convert.ToString(x)).ToList();
             }
-            else if(c == '>')
+            else if (c == '>')
             {
                 returnState = States.TEXT;
                 nodecharpos = 0;
@@ -159,11 +355,11 @@ namespace htmlstate
             {
                 throw new Exception(currentNode.Value.TagName + " has invalid attribute.");
             }
-                //if (Char.IsLetter(c))
-                //{
-                //    nodetag.Add(Convert.ToString(c));
-                //}
-                return returnState;
+            //if (Char.IsLetter(c))
+            //{
+            //    nodetag.Add(Convert.ToString(c));
+            //}
+            return returnState;
         }
 
         private States NODEEND(char c, States state)
@@ -203,7 +399,7 @@ namespace htmlstate
             }
             else if (c == '!' && nodetag.Count() == 0)
             {
-                returnState = States.DOCTYPE;
+                returnState = States.DOCTYPESTART;
             }
             else if (c == '/')
             {
@@ -222,21 +418,31 @@ namespace htmlstate
             }
             else if (c == '>')
             {
-                returnState = States.TEXT;
+                if (CurrentTAG.ToLower().Equals("script"))
+                {
+                    returnState = States.SCRIPTCONTENT;
+                }
+                else
+                    returnState = States.TEXT;
                 nodecharpos = 0;
                 currentNode = OnTagBegin(new CustomTag(CurrentTAG));
                 Console.WriteLine("Tag: " + currentNode.Value.TagName + " opened");
                 nodetag.Clear();
             }
-            else if(c == ' ')
+            else if (c == ' ')
             {
+
                 returnState = States.ATTRIBUTENAME;
                 nodecharpos = 0;
                 currentNode = OnTagBegin(new CustomTag(CurrentTAG));
-                Console.WriteLine("Tag: " + currentNode.Value.TagName+ " opened");
+                Console.WriteLine("Tag: " + currentNode.Value.TagName + " opened");
                 nodetag.Clear();
             }
-            else if (Char.IsLetter(c))
+            else if (Char.IsLetter(c) && nodetag.Count() == 0)
+            {
+                nodetag.Add(Convert.ToString(c));
+            }
+            else if (nodetag.Count() > 0)
             {
                 nodetag.Add(Convert.ToString(c));
             }
